@@ -1285,6 +1285,10 @@ function renderSettingsModal(accounts){
       <label>الاسم المعروض</label>
       <input type="text" id="newAccName" placeholder="مثال: د. سارة" />
     </div>
+    <div class="field">
+      <label>رمز مرور مؤقت (اختياري — اتركه فارغًا ليولّده النظام تلقائيًا)</label>
+      <input type="text" id="newAccTempPass" placeholder="٦ أحرف على الأقل" autocomplete="off" />
+    </div>
     <div class="modal-actions" style="margin-bottom:22px;">
       <button class="btn-primary" id="createAccBtn">إنشاء حساب جديد</button>
     </div>`;
@@ -1377,14 +1381,16 @@ function renderSettingsModal(accounts){
   if(createAccBtn) createAccBtn.addEventListener('click', async ()=>{
     const username = document.getElementById('newAccUsername').value.trim();
     const name = document.getElementById('newAccName').value.trim();
+    const tempPass = document.getElementById('newAccTempPass').value.trim();
     if(!username || !name){ showToast('الرجاء إدخال الاسم واسم المستخدم'); return; }
+    if(tempPass && tempPass.length < 6){ showToast('الرمز المؤقت يجب أن يكون ٦ أحرف على الأقل'); return; }
     createAccBtn.disabled = true; createAccBtn.textContent = 'جارِ الإنشاء...';
     try{
       const { data: { session } } = await sb.auth.getSession();
       const res = await fetch('/api/create-user', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
-        body: JSON.stringify({ username, name })
+        body: JSON.stringify(tempPass ? { username, name, tempPassword: tempPass } : { username, name })
       });
       let result;
       try{ result = await res.json(); }

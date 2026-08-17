@@ -348,6 +348,7 @@
   .modal{
     background:var(--surface);border-radius:var(--radius-lg);padding:28px;
     width:100%;max-width:420px;box-shadow:0 30px 60px -20px rgba(0,0,0,0.4);
+    max-height:85vh;overflow-y:auto;
   }
   .modal h3{margin:0 0 18px;font-size:18px;color:var(--primary-dark);}
   .modal-actions{display:flex;gap:10px;margin-top:20px;}
@@ -1385,11 +1386,18 @@ function renderSettingsModal(accounts){
         headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token },
         body: JSON.stringify({ username, name })
       });
-      const result = await res.json();
+      let result;
+      try{ result = await res.json(); }
+      catch(parseErr){
+        throw new Error(res.status===404
+          ? 'الخادم لم يجد /api/create-user (404) — تأكد أن ملف api/create-user.js مرفوع على GitHub بنفس المسار وأن Vercel أعاد النشر'
+          : 'رد الخادم غير متوقع (كود '+res.status+') — تحقق من Vercel ← Deployments ← Functions'
+        );
+      }
       if(!res.ok){ showToast(result.error || 'تعذر إنشاء الحساب'); createAccBtn.disabled=false; createAccBtn.textContent='إنشاء حساب جديد'; return; }
       showTempPasswordModal(result.username, result.tempPassword, ()=>openSettingsModal());
     }catch(e){
-      showToast('تعذر الاتصال بالخادم — تحقق من أن نقاط /api منشورة على Vercel');
+      showToast(e.message || 'تعذر الاتصال بالخادم');
       createAccBtn.disabled=false; createAccBtn.textContent='إنشاء حساب جديد';
     }
   });

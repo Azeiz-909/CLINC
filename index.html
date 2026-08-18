@@ -156,6 +156,34 @@
   }
   .cat-name{font-size:17px;color:var(--primary-dark);}
   .cat-count{color:var(--text-muted);font-size:13px;}
+
+  /* ---------- "show all" button + collapsible category groups ---------- */
+  .show-all-btn{
+    display:flex;align-items:center;gap:8px;justify-content:center;
+    width:100%;background:var(--surface);border:1.5px solid var(--line);
+    border-radius:var(--radius-md);padding:14px 18px;margin-bottom:18px;
+    font-weight:700;font-size:14px;color:var(--primary-dark);box-shadow:var(--shadow);transition:.15s;
+  }
+  .show-all-btn:hover{border-color:var(--primary-light);background:var(--accent-soft);}
+  .show-all-btn svg{width:17px;height:17px;flex-shrink:0;}
+  .category-group{
+    background:var(--surface);border-radius:var(--radius-md);box-shadow:var(--shadow);
+    overflow:hidden;margin-bottom:12px;
+  }
+  .category-group-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;cursor:pointer;
+  }
+  .category-group-title{
+    font-weight:700;font-size:15px;color:var(--primary-dark);
+    display:flex;align-items:center;gap:10px;
+  }
+  .category-group-count{font-weight:600;font-size:12.5px;color:var(--text-muted);}
+  .category-group-body{
+    padding:14px 16px 18px;border-top:1.5px solid var(--line);
+    display:flex;flex-direction:column;gap:10px;
+  }
+
   /* small, quiet utility buttons — used for "add category" / "add field" so they don't compete for attention */
   .sm-add-btn{
     width:30px;height:30px;border-radius:10px;background:#FBFAF6;border:1.3px solid var(--line);
@@ -482,6 +510,7 @@ let state = {
   view: 'login',        // login | set-password | dashboard | list | closed | inactive
   activeCategory: null,
   expandedPatientId: null,
+  expandedCategories: {},
   loading: true
 };
 
@@ -583,6 +612,7 @@ async function render(){
   if(state.view==='set-password'){ app.innerHTML = renderSetPassword(); attachSetPasswordEvents(); return; }
   if(state.view==='dashboard'){ app.innerHTML = renderShell(renderDashboard()); attachDashboardEvents(); }
   else if(state.view==='list'){ app.innerHTML = renderShell(renderList()); attachListEvents(); }
+  else if(state.view==='all'){ app.innerHTML = renderShell(renderAllView()); attachAllViewEvents(); }
   else if(state.view==='closed'){ app.innerHTML = renderShell(renderClosed()); attachClosedEvents(); }
   else if(state.view==='inactive'){ app.innerHTML = renderShell(renderInactive()); attachInactiveEvents(); }
 }
@@ -795,6 +825,7 @@ function renderDashboard(){
       </div>
       <button class="sm-add-btn" id="quickAddCat" title="إضافة تصنيف جديد">${ICONS.plus}</button>
     </div>
+    <button class="show-all-btn" id="openAllView">${ICONS.calendar} عرض الكل — كل التصنيفات والمراجعين في قائمة واحدة</button>
     <div class="cat-grid">
       ${cards}
     </div>
@@ -823,6 +854,53 @@ function attachDashboardEvents(){
   document.getElementById('quickAddCat').addEventListener('click', openSettingsModal);
   document.getElementById('openClosed').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='closed'; render(); });
   document.getElementById('openInactive').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='inactive'; render(); });
+  document.getElementById('openAllView').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='all'; render(); });
+}
+
+/* ============ ALL CATEGORIES (فولد/طي لكل تصنيف) ============ */
+function renderAllView(){
+  const cats = state.data.categories;
+  const groups = cats.map(c=>{
+    const patients = state.data.patients.filter(p=>p.categoryId===c.id && p.status==='active');
+    const isOpen = !!state.expandedCategories[c.id];
+    const body = isOpen ? `
+      <div class="category-group-body">
+        ${patients.length
+          ? patients.map(p=>renderPatientCard(p)).join('')
+          : `<div class="no-fields-hint">لا يوجد مراجعون في هذا التصنيف.</div>`}
+      </div>` : '';
+    return `
+      <div class="category-group ${isOpen?'is-open':''}">
+        <div class="category-group-header" data-catid="${c.id}">
+          <span class="category-group-title">${c.icon||'🗂️'} ${escapeHtml(c.name)}
+            <span class="category-group-count">${patients.length} ${patients.length===1?'مراجع':'مراجعين'}</span>
+          </span>
+          <span class="row-chevron ${isOpen?'is-open':''}">${ICONS.chevronDown}</span>
+        </div>
+        ${body}
+      </div>`;
+  }).join('');
+
+  return `
+    <button class="page-back" id="backToDashFromAll">${ICONS.back} العودة للتصنيفات</button>
+    <div class="page-head">
+      <h2>عرض الكل</h2>
+      <p>اضغط على أي تصنيف لفتحه أو طيّه، وعلى أي اسم لعرض تفاصيله كاملة</p>
+    </div>
+    ${groups || `<div class="empty-state"><div class="em-icon">🗒️</div><p>لا توجد تصنيفات بعد.</p></div>`}
+  `;
+}
+function attachAllViewEvents(){
+  attachShellEvents();
+  document.getElementById('backToDashFromAll').addEventListener('click', ()=>{ state.view='dashboard'; render(); });
+  document.querySelectorAll('.category-group-header').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.dataset.catid;
+      state.expandedCategories[id] = !state.expandedCategories[id];
+      render();
+    });
+  });
+  attachPatientCardEvents();
 }
 
 /* ============ PATIENT LIST ============ */

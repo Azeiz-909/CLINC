@@ -895,6 +895,7 @@ function attachDashboardEvents(){
 /* ============ ALL CATEGORIES (فولد/طي لكل تصنيف) ============ */
 function renderAllView(){
   const cats = state.data.categories;
+  const catIds = new Set(cats.map(c=>c.id));
   const groups = cats.map(c=>{
     const patients = state.data.patients.filter(p=>p.categoryId===c.id && p.status==='active');
     const isOpen = !!state.expandedCategories[c.id];
@@ -916,13 +917,28 @@ function renderAllView(){
       </div>`;
   }).join('');
 
+  // مراجعون فقدوا تصنيفهم (مثلًا بعد حذف تصنيف كان يضمّهم) — نعرضهم هنا حتى لا يضيعون
+  const uncategorized = state.data.patients.filter(p=>p.status==='active' && (!p.categoryId || !catIds.has(p.categoryId)));
+  const uncatOpen = !!state.expandedCategories['__uncategorized__'];
+  const uncatGroup = uncategorized.length ? `
+    <div class="category-group ${uncatOpen?'is-open':''}">
+      <div class="category-group-header" data-catid="__uncategorized__">
+        <span class="category-group-title">🗒️ بدون تصنيف
+          <span class="category-group-count">${uncategorized.length} ${uncategorized.length===1?'مراجع':'مراجعين'}</span>
+        </span>
+        <span class="row-chevron ${uncatOpen?'is-open':''}">${ICONS.chevronDown}</span>
+      </div>
+      ${uncatOpen ? `<div class="category-group-body">${uncategorized.map(p=>renderPatientCard(p)).join('')}</div>` : ''}
+    </div>` : '';
+
   return `
     <button class="page-back" id="backToDashFromAll">${ICONS.back} العودة للتصنيفات</button>
     <div class="page-head">
       <h2>عرض الكل</h2>
       <p>اضغط على أي تصنيف لفتحه أو طيّه، وعلى أي اسم لعرض تفاصيله كاملة</p>
     </div>
-    ${groups || `<div class="empty-state"><div class="em-icon">🗒️</div><p>لا توجد تصنيفات بعد.</p></div>`}
+    ${groups}${uncatGroup}
+    ${(groups || uncatGroup) ? '' : `<div class="empty-state"><div class="em-icon">🗒️</div><p>لا توجد تصنيفات بعد.</p></div>`}
   `;
 }
 function attachAllViewEvents(){
@@ -1199,7 +1215,7 @@ function renderAppointmentsView(){
   return `
     <button class="page-back" id="backToDashFromAppts">${ICONS.back} العودة للتصنيفات</button>
     <div class="page-head">
-      <h2>${ICONS.bell} جدول المواعيد</h2>
+      <h2>📅 جدول المواعيد</h2>
       <p>${list.length} ${list.length===1?'موعد قادم':'مواعيد قادمة'} — اضغط ✓ عند حضور المراجع لإنهاء الموعد، أو اضغط على الاسم لفتح ملفه</p>
     </div>
     <div class="patient-list">${list.length? rows : empty}</div>
@@ -1650,15 +1666,37 @@ function renderSettingsModal(accounts){
   });
 
   document.querySelectorAll('.delCatBtn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
+    btn.addEventListener('click', ()=>{
       const id = btn.dataset.catid;
-      const hasPatients = state.data.patients.some(p=>p.categoryId===id);
-      if(hasPatients){ showToast('لا يمكن حذف تصنيف يحتوي على مراجعين'); return; }
-      const { error } = await sb.from('categories').delete().eq('id', id);
-      if(error){ showToast('تعذر حذف التصنيف'); return; }
-      state.data.categories = state.data.categories.filter(c=>c.id!==id);
-      renderSettingsModal(accounts);
-      render();
+      const activeCount = state.data.patients.filter(p=>p.categoryId===id && p.status==='active').length;
+      const doDelete = async ()=>{
+        const { error } = await sb.from('categories').delete().eq('id', id);
+        if(error){ showToast('تعذر حذف التصنيف'); return; }
+        state.data.categories = state.data.categories.filter(c=>c.id!==id);
+        state.data.patients.forEach(p=>{ if(p.categoryId===id) p.categoryId=null; });
+        closeModal();
+        renderSettingsModal(accounts);
+        render();
+        showToast('تم حذف التصنيف');
+      };
+      if(activeCount>0){
+        openModal(`
+          <div class="modal">
+            <h3>حذف التصنيف</h3>
+            <p style="color:var(--text-muted);font-size:14px;line-height:1.8;margin:0 0 6px;">
+              هذا التصنيف يحتوي حاليًا على <b style="color:var(--text)">${activeCount}</b> ${activeCount===1?'مراجع نشط':'مراجعين نشطين'}. عند الحذف ستبقى ملفاتهم موجودة لكن بدون تصنيف. هل تريد المتابعة؟
+            </p>
+            <div class="modal-actions">
+              <button class="btn-secondary" id="cancelDelCat">إلغاء</button>
+              <button class="btn-primary" id="confirmDelCat">تأكيد الحذف</button>
+            </div>
+          </div>
+        `);
+        document.getElementById('cancelDelCat').addEventListener('click', ()=>renderSettingsModal(accounts));
+        document.getElementById('confirmDelCat').addEventListener('click', doDelete);
+      } else {
+        doDelete();
+      }
     });
   });
 

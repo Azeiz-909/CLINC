@@ -87,6 +87,10 @@
     font-size:15px;color:var(--text);outline:none;transition:.2s;
   }
   .field input:focus{border-color:var(--primary-light);background:#fff;}
+  .field-row-2{display:flex;gap:12px;}
+  .field-row-2 .field{flex:1;margin-bottom:16px;}
+  .field-row-2 .field-emoji{flex:0 0 84px;}
+  .field-row-2 .field-emoji input{text-align:center;font-size:19px;padding:11px 8px;}
   .btn-primary{
     width:100%;padding:14px;border-radius:var(--radius-sm);
     background:var(--primary);color:#fff;font-weight:700;font-size:15px;
@@ -379,6 +383,18 @@
     max-height:85vh;overflow-y:auto;
   }
   .modal h3{margin:0 0 18px;font-size:18px;color:var(--primary-dark);}
+  .search-input{
+    width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid var(--line);
+    background:#FBFAF7;font-size:14.5px;font-family:inherit;margin-bottom:14px;
+  }
+  .search-results{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;margin-bottom:8px;}
+  .search-result-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:11px 14px;border-radius:10px;background:#FBFAF6;cursor:pointer;transition:.15s;
+  }
+  .search-result-row:hover{background:var(--accent-soft);}
+  .search-result-name{font-weight:700;font-size:14px;color:var(--text);}
+  .search-result-meta{font-size:12px;color:var(--text-muted);}
   .modal-actions{display:flex;gap:10px;margin-top:20px;}
   .btn-secondary{
     flex:1;padding:12px;border-radius:var(--radius-sm);background:#F0EDE4;color:var(--text);font-weight:700;
@@ -499,7 +515,8 @@ const ICONS = {
   bell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3" ry="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
   userX: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>`,
-  chevronDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+  chevronDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`
 };
 
 /* ============ STATE ============ */
@@ -557,7 +574,8 @@ async function loadData(){
         outcome: p.outcome,
         closeNote: p.close_note,
         appointment: p.appointment,
-        customFields: p.custom_fields || []
+        customFields: p.custom_fields || [],
+        visitLog: p.visit_log || []
       }))
     };
   }catch(e){
@@ -585,6 +603,7 @@ async function saveData(){
           close_note: p.closeNote,
           appointment: p.appointment,
           custom_fields: p.customFields || [],
+          visit_log: p.visitLog || [],
           updated_at: new Date().toISOString()
         }))
       );
@@ -615,6 +634,8 @@ async function render(){
   else if(state.view==='all'){ app.innerHTML = renderShell(renderAllView()); attachAllViewEvents(); }
   else if(state.view==='closed'){ app.innerHTML = renderShell(renderClosed()); attachClosedEvents(); }
   else if(state.view==='inactive'){ app.innerHTML = renderShell(renderInactive()); attachInactiveEvents(); }
+  else if(state.view==='appointments'){ app.innerHTML = renderShell(renderAppointmentsView()); attachAppointmentsEvents(); }
+  else if(state.view==='visitslog'){ app.innerHTML = renderShell(renderVisitsLogView()); attachVisitsLogEvents(); }
 }
 
 /* ============ DATE HELPERS ============ */
@@ -782,6 +803,7 @@ function renderShell(inner){
     <div class="topbar">
       <div class="brand"><span class="dot"></span> عيادة تـحـدث</div>
       <div class="top-actions">
+        <button class="icon-btn" id="searchBtn" title="بحث عن مراجع">${ICONS.search}</button>
         <button class="icon-btn" id="settingsBtn" title="الإعدادات والتصنيفات">${ICONS.gear}</button>
         <button class="icon-btn" id="logoutBtn" title="تسجيل الخروج">${ICONS.logout}</button>
       </div>
@@ -800,6 +822,7 @@ function attachShellEvents(){
     state.view='login'; render();
   });
   document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
+  document.getElementById('searchBtn').addEventListener('click', openSearchModal);
   attachReminderEvents();
 }
 
@@ -817,6 +840,8 @@ function renderDashboard(){
   }).join('');
   const closedCount = state.data.patients.filter(p=>p.status==='closed').length;
   const inactiveCount = state.data.patients.filter(p=>p.status==='inactive').length;
+  const apptCount = state.data.patients.filter(p=>p.status==='active' && p.appointment && p.appointment.date).length;
+  const visitLogCount = state.data.patients.reduce((sum,p)=>sum+((p.visitLog||[]).length),0);
   return `
     <div class="page-head-row">
       <div class="page-head">
@@ -830,6 +855,14 @@ function renderDashboard(){
       ${cards}
     </div>
     <div class="tiles-row">
+      <button class="closed-tile" id="openAppointments">
+        <span class="closed-emoji">${ICONS.bell}</span>
+        جدول المواعيد — <b>${apptCount}</b>
+      </button>
+      <button class="closed-tile" id="openVisitsLog">
+        <span class="closed-emoji">${ICONS.printer}</span>
+        سجل جميع المواعيد — <b>${visitLogCount}</b>
+      </button>
       <button class="closed-tile" id="openClosed">
         <span class="closed-emoji">${ICONS.archive}</span>
         حالات انتهت — <b>${closedCount}</b>
@@ -855,6 +888,8 @@ function attachDashboardEvents(){
   document.getElementById('openClosed').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='closed'; render(); });
   document.getElementById('openInactive').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='inactive'; render(); });
   document.getElementById('openAllView').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='all'; render(); });
+  document.getElementById('openAppointments').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='appointments'; render(); });
+  document.getElementById('openVisitsLog').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='visitslog'; render(); });
 }
 
 /* ============ ALL CATEGORIES (فولد/طي لكل تصنيف) ============ */
@@ -962,8 +997,7 @@ function renderPatientCard(p){
         <a href="tel:${encodeURIComponent(p.phone||'')}" class="call-btn" onclick="event.stopPropagation()" title="اتصال">${ICONS.call}</a>
         ${p.status==='active' ? `
         <span class="outcome-divider"></span>
-        <button class="outcome-btn ok" data-outcome-id="${p.id}" data-outcome="success" title="إنهاء الحالة كناجحة">${ICONS.check}</button>
-        <button class="outcome-btn no" data-outcome-id="${p.id}" data-outcome="fail" title="إنهاء الحالة كغير ناجحة">${ICONS.x}</button>` : ''}
+        <button class="outcome-btn ok" data-endcase-id="${p.id}" title="إنهاء الحالة">${ICONS.check}</button>` : ''}
         <span class="row-chevron ${isExpanded?'is-open':''}">${ICONS.chevronDown}</span>
       </div>
     </div>`;
@@ -985,11 +1019,14 @@ function renderPatientExpandedBody(p){
 
   let statusBlock;
   if(isClosed){
+    const badge = p.outcome==='success'
+      ? `<span class="status-badge success">${ICONS.check} حالة ناجحة</span>`
+      : p.outcome==='fail'
+        ? `<span class="status-badge fail">${ICONS.x} لم تنجح بشكل تام</span>`
+        : `<span class="status-badge" style="background:#EDEAE0;color:var(--text-muted);">${ICONS.check} الحالة منتهية</span>`;
     statusBlock = `
       <div class="expanded-status">
-        <span class="status-badge ${p.outcome==='success'?'success':'fail'}">
-          ${p.outcome==='success'? ICONS.check+' حالة ناجحة' : ICONS.x+' لم تنجح بشكل تام'}
-        </span>
+        ${badge}
         <button class="chip-btn" id="reopenCase">↺ إعادة فتح الحالة</button>
       </div>
       ${p.outcome==='fail' && p.closeNote ? `<div class="closed-note"><b>ملاحظات الإغلاق: </b>${escapeHtml(p.closeNote)}</div>` : ''}`;
@@ -1050,10 +1087,10 @@ function attachPatientCardEvents(){
       render();
     });
   });
-  document.querySelectorAll('.outcome-btn[data-outcome-id]').forEach(btn=>{
+  document.querySelectorAll('.outcome-btn[data-endcase-id]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
-      openOutcomeModal(btn.dataset.outcomeId, btn.dataset.outcome);
+      openEndCaseModal(btn.dataset.endcaseId);
     });
   });
 
@@ -1121,6 +1158,163 @@ function attachInactiveEvents(){
   attachShellEvents();
   document.getElementById('backToDashFromInactive').addEventListener('click', ()=>{ state.expandedPatientId=null; state.view='dashboard'; render(); });
   attachPatientCardEvents();
+}
+
+/* ============ APPOINTMENTS / VISITS TABLE ============
+   Quick task list of upcoming appointments — mark attendance with one tap,
+   or click the row to open the full patient file. */
+function renderAppointmentsView(){
+  const list = state.data.patients
+    .filter(p=>p.status==='active' && p.appointment && p.appointment.date)
+    .slice()
+    .sort((a,b)=>{
+      const key = x => x.appointment.date + String(x.appointment.hour).padStart(2,'0') + String(x.appointment.minute).padStart(2,'0') + (x.appointment.period==='ص'?'0':'1');
+      return key(a).localeCompare(key(b));
+    });
+
+  const rows = list.map(p=>{
+    const cat = state.data.categories.find(c=>c.id===p.categoryId);
+    const initial = (p.name||'؟').trim().charAt(0);
+    const waNumber = (p.phone||'').replace(/[^0-9+]/g,'');
+    return `
+    <div class="patient-row appt-row" data-pid="${p.id}">
+      <div class="patient-info">
+        <div class="avatar">${initial}</div>
+        <div>
+          <div class="patient-name">${escapeHtml(p.name)}</div>
+          <div class="patient-phone">${cat? cat.icon+' '+escapeHtml(cat.name)+' — ':''}${formatApptDate(p.appointment.date)} · ${p.appointment.hour}:${p.appointment.minute} ${p.appointment.period==='ص'?'صباحًا':'مساءً'}</div>
+        </div>
+      </div>
+      <div class="contact-icons">
+        <a href="https://wa.me/${encodeURIComponent(waNumber)}" target="_blank" class="whatsapp-btn" onclick="event.stopPropagation()" title="واتساب">${ICONS.whatsapp}</a>
+        <a href="tel:${encodeURIComponent(p.phone||'')}" class="call-btn" onclick="event.stopPropagation()" title="اتصال">${ICONS.call}</a>
+        <span class="outcome-divider"></span>
+        <button class="appt-attend-btn" data-pid="${p.id}" title="تم الحضور — إنهاء الموعد">${ICONS.check}</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const empty = `<div class="empty-state"><div class="em-icon">📅</div><p>لا توجد مواعيد قادمة مسجّلة حاليًا.</p></div>`;
+
+  return `
+    <button class="page-back" id="backToDashFromAppts">${ICONS.back} العودة للتصنيفات</button>
+    <div class="page-head">
+      <h2>${ICONS.bell} جدول المواعيد</h2>
+      <p>${list.length} ${list.length===1?'موعد قادم':'مواعيد قادمة'} — اضغط ✓ عند حضور المراجع لإنهاء الموعد، أو اضغط على الاسم لفتح ملفه</p>
+    </div>
+    <div class="patient-list">${list.length? rows : empty}</div>
+  `;
+}
+function attachAppointmentsEvents(){
+  attachShellEvents();
+  document.getElementById('backToDashFromAppts').addEventListener('click', ()=>{ state.view='dashboard'; render(); });
+  document.querySelectorAll('.appt-attend-btn').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const p = state.data.patients.find(x=>x.id===btn.dataset.pid);
+      if(!p || !p.appointment) return;
+      p.visitLog = p.visitLog || [];
+      p.visitLog.push({
+        id: uid('v'),
+        date: p.appointment.date,
+        hour: p.appointment.hour,
+        minute: p.appointment.minute,
+        period: p.appointment.period,
+        categoryId: p.categoryId
+      });
+      p.appointment = null;
+      await saveData();
+      showToast('تم تسجيل الحضور وإضافة الزيارة للسجل');
+      render();
+    });
+  });
+  document.querySelectorAll('.appt-row').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const p = state.data.patients.find(x=>x.id===el.dataset.pid);
+      if(!p) return;
+      state.view='list'; state.activeCategory=p.categoryId; state.expandedPatientId=p.id;
+      render();
+    });
+  });
+}
+
+/* ============ VISITS LOG (سجل جميع المواعيد — permanent history, separate from closed cases) ============ */
+function renderVisitsLogView(){
+  const rows = [];
+  state.data.patients.forEach(p=>{
+    (p.visitLog||[]).forEach(v=>{
+      const cat = state.data.categories.find(c=>c.id===v.categoryId);
+      rows.push({ patientName:p.name, categoryName: cat? cat.name : '—', categoryIcon: cat? cat.icon : '', ...v });
+    });
+  });
+  rows.sort((a,b)=>{
+    const key = x => x.date + String(x.hour).padStart(2,'0') + String(x.minute).padStart(2,'0') + (x.period==='ص'?'0':'1');
+    return key(b).localeCompare(key(a)); // الأحدث أولًا
+  });
+
+  const trs = rows.map(v=>`
+    <tr>
+      <td>${escapeHtml(v.patientName)}</td>
+      <td>${v.categoryIcon? v.categoryIcon+' ':''}${escapeHtml(v.categoryName)}</td>
+      <td>${formatApptDate(v.date)} · ${v.hour}:${v.minute} ${v.period==='ص'?'صباحًا':'مساءً'}</td>
+      <td><span class="status-badge" style="background:#EDEAE0;color:var(--text-muted);">منتهي</span></td>
+    </tr>`).join('');
+
+  const empty = `<div class="empty-state"><div class="em-icon">🗓️</div><p>لا توجد زيارات مسجّلة بعد — تُضاف الزيارة هنا تلقائيًا عند تسجيل الحضور من «جدول المواعيد».</p></div>`;
+
+  return `
+    <button class="page-back" id="backToDashFromVisitsLog">${ICONS.back} العودة للتصنيفات</button>
+    <div class="page-head-row">
+      <div class="page-head">
+        <h2>سجل جميع المواعيد</h2>
+        <p>${rows.length} ${rows.length===1?'زيارة مسجّلة':'زيارة مسجّلة'} — سجل دائم لكل المواعيد التي تمت، منفصل عن «حالات انتهت»</p>
+      </div>
+      ${rows.length? `<button class="btn-accent" id="printVisitsLogBtn">${ICONS.printer} طباعة PDF</button>` : ''}
+    </div>
+    ${rows.length? `
+    <div class="closed-table-wrap">
+      <table class="closed-table">
+        <thead><tr><th>اسم المراجع</th><th>التصنيف</th><th>تاريخ الزيارة</th><th>الحالة</th></tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>` : empty}
+  `;
+}
+function attachVisitsLogEvents(){
+  attachShellEvents();
+  document.getElementById('backToDashFromVisitsLog').addEventListener('click', ()=>{ state.view='dashboard'; render(); });
+  const printBtn = document.getElementById('printVisitsLogBtn');
+  if(printBtn) printBtn.addEventListener('click', printVisitsLog);
+}
+function printVisitsLog(){
+  const rows = [];
+  state.data.patients.forEach(p=>{
+    (p.visitLog||[]).forEach(v=>{
+      const cat = state.data.categories.find(c=>c.id===v.categoryId);
+      rows.push({ patientName:p.name, categoryName: cat? cat.name : '—', ...v });
+    });
+  });
+  rows.sort((a,b)=>{
+    const key = x => x.date + String(x.hour).padStart(2,'0') + String(x.minute).padStart(2,'0') + (x.period==='ص'?'0':'1');
+    return key(b).localeCompare(key(a));
+  });
+  const dateStr = new Date().toLocaleDateString('ar-SA');
+  const trs = rows.map(v=>`
+    <tr>
+      <td>${escapeHtml(v.patientName)}</td>
+      <td>${escapeHtml(v.categoryName)}</td>
+      <td>${formatApptDate(v.date)} — ${v.hour}:${v.minute} ${v.period==='ص'?'صباحًا':'مساءً'}</td>
+      <td>منتهي</td>
+    </tr>`).join('');
+  document.getElementById('printArea').innerHTML = `
+    <h2>عيادة تـحـدث — سجل جميع المواعيد</h2>
+    <div class="print-date">تاريخ الطباعة: ${dateStr}</div>
+    <table>
+      <thead><tr><th>اسم المراجع</th><th>التصنيف</th><th>تاريخ الزيارة</th><th>الحالة</th></tr></thead>
+      <tbody>${trs}</tbody>
+    </table>
+  `;
+  window.print();
 }
 
 /* ---- move-to-inactive confirm modal ---- */
@@ -1253,60 +1447,30 @@ function printClosedCases(){
 }
 
 /* ---- outcome (end case) modal ---- */
-function openOutcomeModal(patientId, outcome){
+function openEndCaseModal(patientId){
   const p = state.data.patients.find(x=>x.id===patientId);
   if(!p) return;
-  if(outcome==='success'){
-    openModal(`
-      <div class="modal">
-        <h3>إنهاء الحالة كناجحة</h3>
-        <p style="color:var(--text-muted);font-size:14px;line-height:1.8;margin:0 0 6px;">
-          سيتم نقل ملف <b style="color:var(--text)">${escapeHtml(p.name)}</b> إلى قائمة «حالات انتهت» بحالة ناجحة.
-        </p>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="cancelOutcome">إلغاء</button>
-          <button class="btn-primary" id="confirmOutcome">تأكيد الإنهاء</button>
-        </div>
+  openModal(`
+    <div class="modal">
+      <h3>إنهاء الحالة</h3>
+      <p style="color:var(--text-muted);font-size:14px;line-height:1.8;margin:0 0 6px;">
+        سيتم نقل ملف <b style="color:var(--text)">${escapeHtml(p.name)}</b> إلى قائمة «حالات انتهت».
+      </p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelEndCase">إلغاء</button>
+        <button class="btn-primary" id="confirmEndCase">تأكيد الإنهاء</button>
       </div>
-    `);
-    document.getElementById('cancelOutcome').addEventListener('click', closeModal);
-    document.getElementById('confirmOutcome').addEventListener('click', async ()=>{
-      p.status='closed'; p.outcome='success'; p.closeNote='';
-      await saveData();
-      closeModal();
-      state.expandedPatientId = null;
-      render();
-      showToast('تم نقل الحالة إلى حالات انتهت');
-    });
-  } else {
-    openModal(`
-      <div class="modal">
-        <h3>إنهاء الحالة — لم تنجح بشكل تام</h3>
-        <p style="color:var(--text-muted);font-size:13.5px;line-height:1.8;margin:0 0 14px;">
-          ملف <b style="color:var(--text)">${escapeHtml(p.name)}</b> سينتقل إلى «حالات انتهت». الرجاء إضافة شرح مختصر — سيظهر هذا فقط عند مراجعة الحالة.
-        </p>
-        <div class="field">
-          <label>الملاحظات / سبب عدم اكتمال الحالة</label>
-          <textarea id="outcomeNote" rows="4" placeholder="اكتب توضيحًا مختصرًا هنا" style="width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid var(--line);background:#FBFAF7;font-size:14.5px;resize:vertical;"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" id="cancelOutcome">إلغاء</button>
-          <button class="btn-primary" id="confirmOutcome">تأكيد الإنهاء</button>
-        </div>
-      </div>
-    `);
-    document.getElementById('cancelOutcome').addEventListener('click', closeModal);
-    document.getElementById('confirmOutcome').addEventListener('click', async ()=>{
-      const note = document.getElementById('outcomeNote').value.trim();
-      if(!note){ showToast('الرجاء كتابة ملاحظة توضيحية'); return; }
-      p.status='closed'; p.outcome='fail'; p.closeNote=note;
-      await saveData();
-      closeModal();
-      state.expandedPatientId = null;
-      render();
-      showToast('تم نقل الحالة إلى حالات انتهت');
-    });
-  }
+    </div>
+  `);
+  document.getElementById('cancelEndCase').addEventListener('click', closeModal);
+  document.getElementById('confirmEndCase').addEventListener('click', async ()=>{
+    p.status='closed'; p.outcome=null; p.closeNote='';
+    await saveData();
+    closeModal();
+    state.expandedPatientId = null;
+    render();
+    showToast('تم نقل الحالة إلى حالات انتهت');
+  });
 }
 
 /* ============ MODALS ============ */
@@ -1319,6 +1483,54 @@ function openModal(html){
 function closeModal(){
   const root = document.getElementById('modalRoot');
   if(root) root.innerHTML='';
+}
+
+/* ---- quick search: type a name, jump straight to the patient ---- */
+function openSearchModal(){
+  openModal(`
+    <div class="modal">
+      <h3>${ICONS.search} بحث عن مراجع</h3>
+      <input type="text" id="searchInput" class="search-input" placeholder="اكتب الاسم أو أول الأحرف..." autocomplete="off" />
+      <div id="searchResults" class="search-results"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="closeSearch">إغلاق</button>
+      </div>
+    </div>
+  `);
+  document.getElementById('closeSearch').addEventListener('click', closeModal);
+  const input = document.getElementById('searchInput');
+  input.focus();
+  input.addEventListener('input', ()=> renderSearchResults(input.value.trim()));
+  renderSearchResults('');
+}
+function renderSearchResults(query){
+  const box = document.getElementById('searchResults');
+  if(!box) return;
+  if(!query){ box.innerHTML = `<div class="no-fields-hint">ابدأ الكتابة للبحث عن مراجع بالاسم.</div>`; return; }
+  const q = query.toLowerCase();
+  const results = state.data.patients.filter(p=>p.name && p.name.toLowerCase().includes(q)).slice(0,30);
+  if(!results.length){ box.innerHTML = `<div class="no-fields-hint">لا توجد نتائج مطابقة.</div>`; return; }
+  box.innerHTML = results.map(p=>{
+    const cat = state.data.categories.find(c=>c.id===p.categoryId);
+    const meta = p.status==='closed' ? 'حالة منتهية' : p.status==='inactive' ? 'غير نشط' : (cat? cat.icon+' '+escapeHtml(cat.name) : '');
+    return `
+    <div class="search-result-row" data-pid="${p.id}">
+      <span class="search-result-name">${escapeHtml(p.name)}</span>
+      <span class="search-result-meta">${meta}</span>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.search-result-row').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const p = state.data.patients.find(x=>x.id===el.dataset.pid);
+      if(!p) return;
+      closeModal();
+      if(p.status==='closed'){ state.view='closed'; }
+      else if(p.status==='inactive'){ state.view='inactive'; }
+      else { state.view='list'; state.activeCategory=p.categoryId; }
+      state.expandedPatientId = p.id;
+      render();
+    });
+  });
 }
 
 /* ---- settings modal: manage categories ---- */
@@ -1334,7 +1546,10 @@ function renderSettingsModal(accounts){
   const catRows = state.data.categories.map(c=>`
     <div class="settings-row">
       <span>${c.icon||'🗂️'} ${escapeHtml(c.name)}</span>
-      <button data-catid="${c.id}" class="delCatBtn" title="حذف التصنيف">${ICONS.trash}</button>
+      <span style="display:flex;gap:6px;">
+        <button data-catid="${c.id}" class="editCatBtn" title="تعديل التصنيف">${ICONS.edit}</button>
+        <button data-catid="${c.id}" class="delCatBtn" title="حذف التصنيف">${ICONS.trash}</button>
+      </span>
     </div>
   `).join('') || `<p style="color:var(--text-muted);font-size:13px;">لا توجد تصنيفات بعد.</p>`;
 
@@ -1375,9 +1590,15 @@ function renderSettingsModal(accounts){
     <div class="modal">
       <h3>إدارة التصنيفات</h3>
       <div class="settings-list">${catRows}</div>
-      <div class="field">
-        <label>إضافة تصنيف جديد</label>
-        <input type="text" id="newCatName" placeholder="مثال: مراهقين" />
+      <div class="field-row-2">
+        <div class="field">
+          <label>اسم التصنيف الجديد</label>
+          <input type="text" id="newCatName" placeholder="مثال: مراهقين" />
+        </div>
+        <div class="field field-emoji">
+          <label>الأيقونة</label>
+          <input type="text" id="newCatIcon" placeholder="🗂️" maxlength="4" />
+        </div>
       </div>
       <div class="modal-actions" style="margin-bottom:22px;">
         <button class="btn-primary" id="saveNewCat">إضافة تصنيف</button>
@@ -1410,16 +1631,22 @@ function renderSettingsModal(accounts){
   document.getElementById('closeSettings').addEventListener('click', closeModal);
 
   document.getElementById('saveNewCat').addEventListener('click', async ()=>{
-    const input = document.getElementById('newCatName');
-    const name = input.value.trim();
+    const nameInput = document.getElementById('newCatName');
+    const iconInput = document.getElementById('newCatIcon');
+    const name = nameInput.value.trim();
+    const icon = iconInput.value.trim() || '🗂️';
     if(!name) return;
-    const newCat = { id: uid('c'), name, icon:'🗂️' };
+    const newCat = { id: uid('c'), name, icon };
     const { error } = await sb.from('categories').insert(newCat);
     if(error){ showToast('تعذر إضافة التصنيف'); return; }
     state.data.categories.push(newCat);
     renderSettingsModal(accounts);
     render();
     showToast('تمت إضافة التصنيف');
+  });
+
+  document.querySelectorAll('.editCatBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>openEditCategoryModal(btn.dataset.catid, accounts));
   });
 
   document.querySelectorAll('.delCatBtn').forEach(btn=>{
@@ -1560,6 +1787,43 @@ function showTempPasswordModal(username, tempPassword, onClose){
   });
 }
 
+/* ---- edit category (name + emoji) ---- */
+function openEditCategoryModal(catId, accounts){
+  const c = state.data.categories.find(x=>x.id===catId);
+  if(!c) return;
+  openModal(`
+    <div class="modal">
+      <h3>تعديل التصنيف</h3>
+      <div class="field-row-2">
+        <div class="field">
+          <label>اسم التصنيف</label>
+          <input type="text" id="editCatName" value="${escapeHtml(c.name)}" />
+        </div>
+        <div class="field field-emoji">
+          <label>الأيقونة</label>
+          <input type="text" id="editCatIcon" value="${escapeHtml(c.icon||'🗂️')}" maxlength="4" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelEditCat">إلغاء</button>
+        <button class="btn-primary" id="saveEditCat">حفظ التعديل</button>
+      </div>
+    </div>
+  `);
+  document.getElementById('cancelEditCat').addEventListener('click', ()=>renderSettingsModal(accounts));
+  document.getElementById('saveEditCat').addEventListener('click', async ()=>{
+    const name = document.getElementById('editCatName').value.trim();
+    const icon = document.getElementById('editCatIcon').value.trim() || '🗂️';
+    if(!name){ showToast('الرجاء إدخال اسم التصنيف'); return; }
+    const { error } = await sb.from('categories').update({ name, icon }).eq('id', catId);
+    if(error){ showToast('تعذر حفظ التعديل'); return; }
+    c.name = name; c.icon = icon;
+    renderSettingsModal(accounts);
+    render();
+    showToast('تم تعديل التصنيف');
+  });
+}
+
 /* ---- add patient modal ---- */
 function openAddPatientModal(){
   openModal(`
@@ -1585,7 +1849,7 @@ function openAddPatientModal(){
     const phone = document.getElementById('newPPhone').value.trim();
     if(!name){ showToast('الرجاء إدخال اسم المراجع'); return; }
     state.data.patients.push({
-      id: uid('p'), categoryId: state.activeCategory, name, phone, customFields:[],
+      id: uid('p'), categoryId: state.activeCategory, name, phone, customFields:[], visitLog:[],
       status:'active', outcome:null, closeNote:'', appointment:null
     });
     await saveData();
